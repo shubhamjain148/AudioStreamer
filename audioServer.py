@@ -12,7 +12,7 @@ CHANNELS = 1
 RATE = 44100
 RECORD_SECONDS = 100
 
-HOST = '192.168.0.110'    # The remote host
+HOST = '192.168.0.105'    # The remote host
 PORT = 50007              # The same port as used by the server
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -33,19 +33,15 @@ stream = None
 def clientThread(conn, t, wf2):
     
     wf2 = wave.open('closer2.wav','rb')
-    # print (wf2.getsampwidth())
-    # print wf2.getnchannels()
-    # print wf2.getframerate()
     # print t
-    # print CHUNK
-    # print wf2.getframerate()
-    # temp = (t*wf2.getframerate())/CHUNK
-    # print temp
-    print t
-    wf2.setpos(t)
-    for i in range(0, int(wf2.getframerate()/CHUNK*RECORD_SECONDS)):
-        data = wf2.readframes(CHUNK)
+    wf2.setpos(k)
+    data = wf2.readframes(CHUNK)
+    while data:
         conn.sendall(data)
+        data = wf2.readframes(CHUNK)
+    conn.sendall("")
+    print "song end in client"
+    conn.close()
 
 read = 0
 def serverThread(wf):
@@ -56,10 +52,13 @@ def serverThread(wf):
             rate = wf.getframerate(),
             output = True,
             frames_per_buffer=CHUNK)
-    for i in range(0, int(wf.getframerate()/CHUNK*RECORD_SECONDS)):
+    data = wf.readframes(CHUNK)
+    k = wf.tell()
+    while data:
+        stream.write(data)
         data = wf.readframes(CHUNK)
         k = wf.tell()
-        stream.write(data)
+    print "song end in server"
 
 start_new_thread(serverThread, (wf,))
 
@@ -69,11 +68,7 @@ while True:
     start_new_thread(clientThread, (conn, k, wf))
 
 
-
-
 stream.stop_stream()
 stream.close()
-p.terminate()
-conn.close()
- 
+p.terminate() 
 print("*closed")

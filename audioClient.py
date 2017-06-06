@@ -21,7 +21,7 @@ stream = p.open(format=p.get_format_from_width(WIDTH),
                 frames_per_buffer=CHUNK)
 
 
-HOST = '192.168.0.110'                 # Symbolic name meaning all available interfaces
+HOST = '192.168.0.105'                 # Symbolic name meaning all available interfaces
 PORT = 50007              # Arbitrary non-privileged port
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((HOST, PORT))
