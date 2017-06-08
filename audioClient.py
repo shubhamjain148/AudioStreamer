@@ -26,19 +26,23 @@ PORT = 50007              # Arbitrary non-privileged port
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((HOST, PORT))
 
-
-data = s.recv(CHUNK)
-print type(data)
 i=1
-while data != '' and data!="Server exited" and data!="Song ended on server":
-    stream.write(data)
+while True:
     data = s.recv(CHUNK)
-    frames.append(data)
-
-if data!="Server exited":
-    print "Song ended on serer"
-else:
-    print data
+    while data != '' and data!="Server exited" and data!="Song ended on server" and data!="Song changed on server":
+        stream.write(data)
+        data = s.recv(CHUNK)
+        frames.append(data)
+    print "outside"
+    if data=="Server exited":
+        print "Server Exited"
+        break
+    elif data=="Song changed on server":
+        print "Changing Song"
+        continue
+    else:
+        print data
+        break
 print "closing"
 stream.stop_stream()
 stream.close()
