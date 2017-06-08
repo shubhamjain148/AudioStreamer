@@ -1,9 +1,15 @@
 import socket
 import pyaudio
 import wave
+import threading
+import signal
 import time
-from thread import *
 
+class TimeoutException(Exception):   # Custom exception class
+    pass
+
+def timeout_handler(signum, frame):   # Custom signal handler
+    raise TimeoutException
 
 #record
 CHUNK = 4096
@@ -12,7 +18,7 @@ CHANNELS = 1
 RATE = 44100
 RECORD_SECONDS = 100
 
-HOST = '192.168.0.105'    # The remote host
+HOST = 'localhost'    # The remote host
 PORT = 50007              # The same port as used by the server
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -23,52 +29,97 @@ s.listen(5)
 
 frames = []
 k = None
-p = pyaudio.PyAudio()
 
-
-wf = wave.open('closer2.wav','rb')
+name = "closer2.wav"
+wf = wave.open(name,'rb')
 z = 0
 stream = None
 
-def clientThread(conn, t, wf2):
-    
-    wf2 = wave.open('closer2.wav','rb')
-    # print t
-    wf2.setpos(k)
-    data = wf2.readframes(CHUNK)
-    while data:
-        conn.sendall(data)
+class clientJob(threading.Thread):
+ 
+    def __init__(self,conn):
+        threading.Thread.__init__(self)
+ 
+        # The shutdown_flag is a threading.Event object that
+        # indicates whether the thread should be terminated.
+        self.shutdown_flag = threading.Event()
+        self.conn = conn
+        # ... Other thread setup code here ...
+ 
+    def run(self):
+        conn = self.conn
+        wf2 = wave.open('closer2.wav','rb')
+        wf2.setpos(k)
         data = wf2.readframes(CHUNK)
-    conn.sendall("")
-    print "song end in client"
-    conn.close()
+        while not self.shutdown_flag.is_set() and data:
+            try:
+                conn.sendall(data)
+                data = wf2.readframes(CHUNK)
+            except:
+                print "Client exited"
+                conn.close()
+                return
+        if self.shutdown_flag.is_set():
+            print "sending server exited"
+            conn.sendall("Server exited")
+        else:
+            conn.sendall("Song ended on server")             
+        conn.close()  
 
-read = 0
-def serverThread(wf):
-    global k
-    stream = p.open(format =
-            p.get_format_from_width(wf.getsampwidth()),
-            channels = wf.getnchannels(),
-            rate = wf.getframerate(),
-            output = True,
-            frames_per_buffer=CHUNK)
-    data = wf.readframes(CHUNK)
-    k = wf.tell()
-    while data:
-        stream.write(data)
+class serverJob(threading.Thread):
+    def __init__(self, wf):
+        threading.Thread.__init__(self)
+
+        # The shutdown_flag is a threading.Event object that
+        # indicates whether the thread should be terminated.
+        self.shutdown_flag = threading.Event()
+        self.wf = wf
+        # ... Other thread setup code here ...
+ 
+    def run(self):
+        global k
+        global name
+        p = pyaudio.PyAudio()
+        wf = self.wf
+        stream = p.open(format =
+                p.get_format_from_width(wf.getsampwidth()),
+                channels = wf.getnchannels(),
+                rate = wf.getframerate(),
+                output = True,
+                frames_per_buffer=CHUNK)
         data = wf.readframes(CHUNK)
         k = wf.tell()
-    print "song end in server"
 
-start_new_thread(serverThread, (wf,))
+        while not self.shutdown_flag.is_set() and data:
+            stream.write(data)
+            data = wf.readframes(CHUNK)
+            k = wf.tell()
 
-while True:
-    conn, addr = s.accept()
-    print 'Connected by', addr
-    start_new_thread(clientThread, (conn, k, wf))
+        stream.stop_stream()
+        stream.close()
+        p.terminate() 
+        if self.shutdown_flag.is_set():
+            print "Server Closed"
+        else:
+            print "song end in server"
+clients = []
+try: 
+    server = serverJob(wf)
+    server.start()
+    while True:
+        conn, addr = s.accept()
+        print 'Connected by', addr
+        client = clientJob(conn)
+        client.start()
+        clients.append(client)
+except KeyboardInterrupt:
+        server.shutdown_flag.set()
+        for client in clients:
+            client.shutdown_flag.set()
+            client.join()
+        server.join()
+        
 
 
-stream.stop_stream()
-stream.close()
-p.terminate() 
+
 print("*closed")

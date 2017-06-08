@@ -21,7 +21,7 @@ stream = p.open(format=p.get_format_from_width(WIDTH),
                 frames_per_buffer=CHUNK)
 
 
-HOST = '192.168.0.105'                 # Symbolic name meaning all available interfaces
+HOST = 'localhost'                 # Symbolic name meaning all available interfaces
 PORT = 50007              # Arbitrary non-privileged port
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((HOST, PORT))
@@ -30,21 +30,16 @@ s.connect((HOST, PORT))
 data = s.recv(CHUNK)
 print type(data)
 i=1
-while data != '':
-    data = s.recv(CHUNK)
-    print i
+while data != '' and data!="Server exited" and data!="Song ended on server":
     stream.write(data)
-    i=i+1
-    print i
+    data = s.recv(CHUNK)
     frames.append(data)
 
-wf = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
-wf.setnchannels(CHANNELS)
-wf.setsampwidth(p.get_sample_size(FORMAT))
-wf.setframerate(RATE)
-wf.writeframes(b''.join(frames))
-wf.close()
-
+if data!="Server exited":
+    print "Song ended on serer"
+else:
+    print data
+print "closing"
 stream.stop_stream()
 stream.close()
 p.terminate()
